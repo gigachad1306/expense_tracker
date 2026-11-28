@@ -13,17 +13,20 @@
   --bg:#E9EEF2; --panel:#F8FAFB; --ink:#1B2330; --muted:#5B6878; --line:#CBD5DE;
   --accent:#2F4BFF; --accent-ink:#fff; --owe:#D9442F; --get:#17895F; --warn:#F2B632;
   --field:#fff; --shadow:0 18px 50px -20px rgba(27,35,48,.35);
+  --inr:#B05F00; --usd:#6B3FD0;
   --c1:#2F4BFF; --c2:#F2B632; --c3:#E4572E; --c4:#1AA6A0; --c5:#8E4EC6; --c6:#7A9A2B; --c7:#5B6B7F; --c8:#E86AA6;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#11151C; --panel:#181E28; --ink:#E7ECF2; --muted:#93A0B1; --line:#2A3441;
     --accent:#6F85FF; --accent-ink:#0B1020; --owe:#FF7A66; --get:#4CD4A0; --field:#1E2531; --shadow:0 18px 50px -20px #000;
+    --inr:#F0B455; --usd:#B79CFF;
   }
 }
 :root[data-theme="dark"]{
   --bg:#11151C; --panel:#181E28; --ink:#E7ECF2; --muted:#93A0B1; --line:#2A3441;
   --accent:#6F85FF; --accent-ink:#0B1020; --owe:#FF7A66; --get:#4CD4A0; --field:#1E2531; --shadow:0 18px 50px -20px #000;
+  --inr:#F0B455; --usd:#B79CFF;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -130,6 +133,18 @@ main{padding:26px 0 80px}
 .chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700;background:color-mix(in srgb,var(--muted) 18%,transparent);color:var(--muted)}
 .chip.pos{background:color-mix(in srgb,var(--get) 18%,transparent);color:var(--get)}
 .chip.neg{background:color-mix(in srgb,var(--owe) 18%,transparent);color:var(--owe)}
+.chip.inr{background:color-mix(in srgb,var(--inr) 18%,transparent);color:var(--inr)}
+.chip.usd{background:color-mix(in srgb,var(--usd) 18%,transparent);color:var(--usd)}
+.li .a .chip{display:inline-block;margin-top:2px}
+.cur-sw{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.cur-sw button{display:flex;flex-direction:column;align-items:flex-start;min-width:150px;padding:10px 16px;border:1.5px solid var(--line);border-radius:14px;background:var(--panel);text-align:left}
+.cur-sw button b{font-size:16px}
+.cur-sw button small{color:var(--muted);font-size:12.5px;font-weight:500}
+.cur-sw button.inr b{color:var(--inr)} .cur-sw button.usd b{color:var(--usd)}
+.cur-sw button.inr[aria-selected="true"]{border-color:var(--inr);box-shadow:inset 0 0 0 1px var(--inr)}
+.cur-sw button.usd[aria-selected="true"]{border-color:var(--usd);box-shadow:inset 0 0 0 1px var(--usd)}
+.cur-note{margin:0 0 24px;color:var(--muted);font-size:14px;max-width:72ch}
+.cur-note .link{font-size:14px}
 
 .people{display:flex;flex-direction:column}
 .pr{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
@@ -220,12 +235,13 @@ dialog::backdrop{background:rgba(10,14,22,.55)}
   <label class="f">Item<input id="e-item" required maxlength="80" placeholder="Dinner, cab, hotel"></label>
   <div class="row2">
     <label class="f">Amount<input id="e-amt" type="number" step="0.01" min="0.01" required inputmode="decimal"></label>
-    <label class="f">Date<input id="e-date" type="date" required></label>
+    <label class="f">Currency<select id="e-cur" required></select></label>
   </div>
   <div class="row2">
+    <label class="f">Date<input id="e-date" type="date" required></label>
     <label class="f">Paid by<select id="e-paid" required></select></label>
-    <label class="f">Category<select id="e-cat"></select></label>
   </div>
+  <label class="f">Category<select id="e-cat"></select></label>
   <label class="f">How to split<select id="e-method">
     <option value="equal">Equally between people</option>
     <option value="shares">By shares (for example 2 : 1 : 1)</option>
@@ -245,8 +261,9 @@ dialog::backdrop{background:rgba(10,14,22,.55)}
   </div>
   <div class="row2">
     <label class="f">Amount<input id="p-amt" type="number" step="0.01" min="0.01" required inputmode="decimal"></label>
-    <label class="f">Date<input id="p-date" type="date" required></label>
+    <label class="f">Currency<select id="p-cur" required></select></label>
   </div>
+  <label class="f">Date<input id="p-date" type="date" required></label>
   <label class="f">Note (optional)<input id="p-note" maxlength="80" placeholder="UPI, cash, bank transfer"></label>
   <p class="msg" id="p-msg" role="alert"></p>
   <div class="dlg-act"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Save payment</button></div>
@@ -267,8 +284,7 @@ dialog::backdrop{background:rgba(10,14,22,.55)}
    ============================================================ */
 const CONFIG = {
   appName: "Trip split",
-  currency: "INR",
-  locale: "en-IN",
+  locale: "en-IN",            // used for dates
   firebase: {
     apiKey: "AIzaSyDOCytAaTLoQ0_aNt1wdiRTdxgRAaImPuA",
     authDomain: "us-trip-agu-2026.firebaseapp.com",
@@ -283,7 +299,20 @@ const CONFIG = {
 /* ---------- helpers ---------- */
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money = n => new Intl.NumberFormat(CONFIG.locale, {style:"currency", currency:CONFIG.currency, maximumFractionDigits:2}).format(n || 0);
+/* Currencies are never converted or added together. Each one is tracked and settled on its own. */
+const CURRENCIES = {
+  INR: {symbol:"₹",  locale:"en-IN", name:"Indian rupees"},
+  USD: {symbol:"US$", locale:"en-US", name:"US dollars"}
+};
+const CODES = Object.keys(CURRENCIES);
+const _nf = {};
+function money(n, cur = "INR"){
+  const c = CURRENCIES[cur] || CURRENCIES.INR;
+  const f = _nf[cur] || (_nf[cur] = new Intl.NumberFormat(c.locale, {minimumFractionDigits:2, maximumFractionDigits:2}));
+  const v = +n || 0; return (v < 0 ? "-" : "") + c.symbol + f.format(Math.abs(v));
+}
+const curClass = c => String(c || "").toLowerCase();
+const curChip = c => `<span class="chip ${curClass(c)}">${esc(c)}</span>`;
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2));
 const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset()*6e4).toISOString().slice(0,10); };
 const fdate = s => s ? new Date(s+"T00:00").toLocaleDateString(CONFIG.locale, {day:"2-digit", month:"short", year:"2-digit"}) : "";
@@ -294,20 +323,38 @@ function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clea
 
 /* ---------- state ---------- */
 const blank = () => ({ tripName:"My trip", people:[], categories:["Food","Travel","Stay","Groceries","Utilities","Entertainment","Shopping","Other"], expenses:[], payments:[] });
-let S = blank(), user = null, adapter = null, view = "overview", filt = {q:"", cat:""};
+let S = blank(), user = null, adapter = null, view = "overview", filt = {q:"", cat:"", cur:""}, curView = "INR";
 
-const SAMPLE = () => ({
-  tripName:"US trip, November",
-  people:["Devesh","Mahesh","Ritaja","Nandana","Pummy"],
-  categories:blank().categories,
-  expenses:[
-    {id:uid(),date:"2026-11-19",item:"Air BnB",category:"Stay",amount:140882.54,paidBy:"Nandana",method:"equal",parts:{}},
-    {id:uid(),date:"2026-11-21",item:"Bus LA to OAK",category:"Travel",amount:11591.74,paidBy:"Nandana",method:"equal",parts:{Mahesh:true,Ritaja:true,Nandana:true}},
-    {id:uid(),date:"2026-11-21",item:"Train BOM to ADI",category:"Travel",amount:3668,paidBy:"Ritaja",method:"equal",parts:{Mahesh:true,Ritaja:true,Nandana:true}},
-    {id:uid(),date:"2026-11-21",item:"Bus OAK to LA",category:"Travel",amount:12358.53,paidBy:"Nandana",method:"equal",parts:{Mahesh:true,Ritaja:true,Nandana:true}}
-  ],
-  payments:[]
-});
+const SAMPLE = () => {
+  const eq = {Mahesh:true,Ritaja:true,Nandana:true};
+  const ex = (date,item,category,amount,paidBy,parts) => ({id:uid(),date,item,category,amount,currency:"INR",paidBy,method:"equal",parts});
+  const pay = (date,from,to,amount,note) => ({id:uid(),date,from,to,amount,currency:"INR",note});
+  return {
+    tripName:"US trip, November",
+    people:["Devesh","Mahesh","Ritaja","Nandana","Pummy"],
+    categories:blank().categories,
+    expenses:[
+      ex("2026-11-19","Air BnB","Stay",140882.54,"Nandana",{}),
+      ex("2026-11-21","Bus LA to OAK","Travel",11591.74,"Nandana",{...eq}),
+      ex("2026-11-21","Train BOM to ADI","Travel",3668.04,"Ritaja",{...eq}),
+      ex("2026-11-21","Bus OAK to LA","Travel",12358.53,"Nandana",{...eq}),
+      ex("2026-11-24","Train ADI to BOM","Travel",6695.4,"Mahesh",{...eq})
+    ],
+    payments:[
+      pay("2026-11-20","Devesh","Nandana",28176.51,"Air Bnb share paid to Nandana"),
+      pay("2026-11-27","Ritaja","Nandana",35946,"Air Bnb and Bus from and to LA"),
+      pay("2026-11-28","Mahesh","Nandana",32919.15,"Air Bnb and Bus from and to LA (train to BOM included)"),
+      pay("2026-11-29","Pummy","Nandana",28176.51,"Paid via Mahesh")
+    ]
+  };
+};
+
+function normalize(d){
+  const s = Object.assign(blank(), d || {});
+  const fix = x => ({...x, currency: CURRENCIES[x.currency] ? x.currency : "INR"});   // older data had no currency: it was all INR
+  s.expenses = (s.expenses || []).map(fix); s.payments = (s.payments || []).map(fix);
+  return s;
+}
 
 /* ---------- maths ---------- */
 function shareOf(e){
@@ -325,13 +372,14 @@ function shareOf(e){
   }
   return out;
 }
-function balances(){
+function balances(cur){
   const b = {}; S.people.forEach(p => b[p] = {name:p, paid:0, share:0, sent:0, recv:0});
   S.expenses.forEach(e => {
+    if (e.currency !== cur) return;
     if (b[e.paidBy]) b[e.paidBy].paid += +e.amount || 0;
     const sh = shareOf(e); for (const p in sh) if (b[p]) b[p].share += sh[p];
   });
-  S.payments.forEach(x => { if (b[x.from]) b[x.from].sent += +x.amount||0; if (b[x.to]) b[x.to].recv += +x.amount||0; });
+  S.payments.forEach(x => { if (x.currency !== cur) return; if (b[x.from]) b[x.from].sent += +x.amount||0; if (b[x.to]) b[x.to].recv += +x.amount||0; });
   return S.people.map(p => { const r = b[p]; r.net = round2(r.paid - r.share); r.rem = round2(r.net + r.sent - r.recv); return r; });
 }
 function settle(bal){
@@ -467,7 +515,7 @@ window.addEventListener("beforeunload", () => { if (saveT && adapter.mode === "b
 
 async function enter(u){
   user = u;
-  try { const d = await adapter.load(u); S = Object.assign(blank(), d || {}); } catch (e) { S = blank(); toast("Could not load saved data: " + e.message); }
+  try { const d = await adapter.load(u); S = normalize(d); } catch (e) { S = blank(); toast("Could not load saved data: " + e.message); }
   $("#auth").hidden = true; $("#app").hidden = false;
   $("#who-lbl").textContent = u.label; setSaved(adapter.mode === "cloud" ? "Synced" : "Saved");
   view = "overview"; render();
@@ -488,110 +536,128 @@ function render(){
 
 function needPeople(v){
   v.innerHTML = `<div class="panel"><div class="empty"><b>Start by adding the people splitting costs</b>
-    Add at least two names, then log your first expense.</div>
+    Add at least two names, then log your first expense in INR or USD.</div>
     <div class="dlg-act" style="justify-content:flex-start;gap:10px"><button class="btn primary" id="go-people">Add people</button>
-    <button class="btn" id="load-sample">Load example trip</button></div></div>`;
+    <button class="btn" id="load-sample">Load my trip so far</button></div></div>`;
   $("#go-people").onclick = () => { view = "people"; render(); };
-  $("#load-sample").onclick = () => { S = SAMPLE(); persist(); toast("Example trip loaded. Edit or delete it any time."); };
+  $("#load-sample").onclick = () => { S = SAMPLE(); persist(); toast("Trip loaded (all amounts in INR). Edit or delete anything."); };
+}
+
+function curStats(cur){
+  const bal = balances(cur), route = settle(bal);
+  const n = S.expenses.filter(e => e.currency === cur).length + S.payments.filter(p => p.currency === cur).length;
+  return {bal, route, n, pending: route.reduce((a,r) => a + r.amount, 0)};
 }
 
 function vOverview(v){
   if (S.people.length < 2) return needPeople(v);
-  const bal = balances(), route = settle(bal);
-  const total = S.expenses.reduce((a,e) => a + (+e.amount||0), 0);
-  const pending = route.reduce((a,r) => a + r.amount, 0);
+  const stats = {}; CODES.forEach(c => stats[c] = curStats(c));
+  const cur = curView, C = CURRENCIES[cur], {bal, route, pending} = stats[cur];
+  const exps = S.expenses.filter(e => e.currency === cur);
+  const total = exps.reduce((a,e) => a + (+e.amount||0), 0);
   const maxR = Math.max(...route.map(r => r.amount), 1);
   const maxB = Math.max(...bal.map(b => Math.abs(b.rem)), 1);
-
-  const cats = {}; S.expenses.forEach(e => { const k = e.category || "Uncategorised"; cats[k] = (cats[k]||0) + (+e.amount||0); });
+  const cats = {}; exps.forEach(e => { const k = e.category || "Uncategorised"; cats[k] = (cats[k]||0) + (+e.amount||0); });
   const catList = Object.entries(cats).sort((a,b) => b[1]-a[1]);
+  const others = CODES.filter(c => c !== cur && stats[c].route.length);
+  const m = n => money(n, cur);
 
   v.innerHTML = `
   <div class="title-row"><h2>Overview</h2><div class="acts">
     <button class="btn" id="o-pay">Record a payment</button><button class="btn primary" id="o-add">Add expense</button></div></div>
+
+  <div class="cur-sw" role="tablist" aria-label="Currency">${CODES.map(c => {
+    const s2 = stats[c], sub = s2.n === 0 ? "no entries yet" : s2.route.length ? `${s2.route.length} transfer${s2.route.length===1?"":"s"} to settle` : "all settled";
+    return `<button role="tab" class="${curClass(c)}" aria-selected="${c===cur}" data-cur="${c}"><b>${esc(CURRENCIES[c].symbol)} ${c}</b><small>${sub}</small></button>`; }).join("")}</div>
+  <p class="cur-note">Showing <b>${C.name}</b> only. Each currency is tracked and settled on its own and never added to another.${
+    others.map(c => ` <button class="link" data-switch="${c}">${CURRENCIES[c].name}: ${stats[c].route.length} transfer${stats[c].route.length===1?"":"s"} still to settle</button>`).join("")}</p>
+
   <div class="strip">
-    <div><b>${money(total)}</b><span>spent in total, ${S.expenses.length} expense${S.expenses.length===1?"":"s"}</span></div>
-    <div><b>${money(total / S.people.length)}</b><span>average per person</span></div>
-    <div><b style="color:${pending>0.005?"var(--owe)":"var(--get)"}">${money(pending)}</b><span>${pending>0.005?"still to be paid back":"everyone is settled"}</span></div>
+    <div><b>${m(total)}</b><span>spent in ${cur}, ${exps.length} expense${exps.length===1?"":"s"}</span></div>
+    <div><b>${m(total / S.people.length)}</b><span>average per person</span></div>
+    <div><b style="color:${pending>0.005?"var(--owe)":"var(--get)"}">${m(pending)}</b><span>${pending>0.005?"still to be paid back in "+cur:"everyone is settled in "+cur}</span></div>
   </div>
 
-  <section class="panel"><h3>Who pays whom</h3>
-    <p class="hint">The fewest transfers that settle everyone. Thicker lines are bigger amounts.</p>
+  <section class="panel"><h3>Who pays whom in ${cur}</h3>
+    <p class="hint">The fewest transfers that settle everyone. Pay each one in ${C.name}. Thicker lines are bigger amounts.</p>
     ${route.length ? route.map((r,i) => `
       <div class="route">
         <span class="nm from">${esc(r.from)}</span>
-        <div class="trk"><span class="amt">${money(r.amount)}</span><div class="ln" style="--w:${Math.max(22, r.amount/maxR*100).toFixed(1)}%;--t:${(r.amount/maxR).toFixed(2)}"></div></div>
+        <div class="trk"><span class="amt">${m(r.amount)}</span><div class="ln" style="--w:${Math.max(22, r.amount/maxR*100).toFixed(1)}%;--t:${(r.amount/maxR).toFixed(2)}"></div></div>
         <span class="nm to">${esc(r.to)}</span>
         <span class="act"><button class="btn small" data-settle="${i}">Mark as paid</button></span>
       </div>`).join("") :
-      `<div class="empty"><b>${S.expenses.length ? "Everyone is settled" : "No expenses yet"}</b>${S.expenses.length ? "Nobody owes anything right now." : "Add your first expense and the transfers appear here."}</div>`}
+      `<div class="empty"><b>${exps.length ? "Everyone is settled in "+cur : "No "+cur+" expenses yet"}</b>${exps.length ? "Nobody owes anything in "+C.name+" right now." : "Add an expense in "+cur+" and the transfers appear here."}</div>`}
   </section>
 
-  <section class="panel"><h3>Balance per person</h3>
-    <p class="hint">After payments already recorded. Green gets money back, red still owes.</p>
+  <section class="panel"><h3>Balance per person in ${cur}</h3>
+    <p class="hint">After ${cur} payments already recorded. Green gets money back, red still owes.</p>
     ${bal.map(b => `
-      <div class="bal"><span class="nm">${esc(b.name)}<small>paid ${money(b.paid)} · share ${money(b.share)}</small></span>
-        <div class="axis" role="img" aria-label="${esc(b.name)} ${b.rem<0?"owes":"gets back"} ${money(Math.abs(b.rem))}">${
+      <div class="bal"><span class="nm">${esc(b.name)}<small>paid ${m(b.paid)} · share ${m(b.share)}</small></span>
+        <div class="axis" role="img" aria-label="${esc(b.name)} ${b.rem<0?"owes":"gets back"} ${m(Math.abs(b.rem))}">${
           Math.abs(b.rem)>0.005 ? `<i class="${b.rem<0?"neg":"pos"}" style="width:${(Math.abs(b.rem)/maxB*50).toFixed(1)}%"></i>` : ""}</div>
-        <span class="v ${b.rem<-0.005?"neg":b.rem>0.005?"pos":""}">${Math.abs(b.rem)<=0.005 ? "Settled" : (b.rem<0?"Owes ":"Gets ") + money(Math.abs(b.rem))}</span></div>`).join("")}
+        <span class="v ${b.rem<-0.005?"neg":b.rem>0.005?"pos":""}">${Math.abs(b.rem)<=0.005 ? "Settled" : (b.rem<0?"Owes ":"Gets ") + m(Math.abs(b.rem))}</span></div>`).join("")}
   </section>
 
-  ${catList.length ? `<section class="panel"><h3>Where the money went</h3><p class="hint">Spending by category.</p>
+  ${catList.length ? `<section class="panel"><h3>Where the ${cur} went</h3><p class="hint">Spending by category in ${C.name}.</p>
     <div class="cats-bar" role="img" aria-label="Spending by category">${catList.map(([k,a],i) => `<i style="flex:${a};background:${COLORS[i%8]}" title="${esc(k)}"></i>`).join("")}</div>
-    <div class="legend">${catList.map(([k,a],i) => `<div><i style="background:${COLORS[i%8]}"></i>${esc(k)}<span>${money(a)}</span></div>`).join("")}</div></section>` : ""}`;
+    <div class="legend">${catList.map(([k,a],i) => `<div><i style="background:${COLORS[i%8]}"></i>${esc(k)}<span>${m(a)}</span></div>`).join("")}</div></section>` : ""}`;
 
   $("#o-add").onclick = () => openExpense(); $("#o-pay").onclick = () => openPayment();
-  v.querySelectorAll("[data-settle]").forEach(b => b.onclick = () => {
-    const r = route[+b.dataset.settle]; openPayment(null, r);
-  });
+  v.querySelectorAll("[data-cur],[data-switch]").forEach(b => b.onclick = () => { curView = b.dataset.cur || b.dataset.switch; render(); });
+  v.querySelectorAll("[data-settle]").forEach(b => b.onclick = () => openPayment(null, {...route[+b.dataset.settle], currency:cur}));
 }
 
 function vExpenses(v){
   if (S.people.length < 2) return needPeople(v);
   const q = filt.q.toLowerCase();
-  const list = S.expenses.filter(e => (!filt.cat || (e.category||"")===filt.cat) && (!q || (e.item+" "+e.paidBy+" "+(e.category||"")).toLowerCase().includes(q)))
+  const list = S.expenses.filter(e => (!filt.cur || e.currency === filt.cur) && (!filt.cat || (e.category||"")===filt.cat) && (!q || (e.item+" "+e.paidBy+" "+(e.category||"")).toLowerCase().includes(q)))
     .sort((a,b) => b.date.localeCompare(a.date));
-  const sum = list.reduce((a,e) => a + (+e.amount||0), 0);
+  const sums = CODES.map(c => [c, list.filter(e => e.currency===c).reduce((a,e) => a + (+e.amount||0), 0)]).filter(([c,t]) => t > 0);
   v.innerHTML = `
   <div class="title-row"><h2>Expenses</h2><div class="acts"><button class="btn primary" id="x-add">Add expense</button></div></div>
   <div class="filters">
     <input id="x-q" type="search" placeholder="Search items" aria-label="Search items" value="${esc(filt.q)}">
+    <select id="x-cur" aria-label="Filter by currency"><option value="">All currencies</option>${CODES.map(c => `<option value="${c}" ${filt.cur===c?"selected":""}>${esc(CURRENCIES[c].symbol)} ${c} only</option>`).join("")}</select>
     <select id="x-c" aria-label="Filter by category"><option value="">All categories</option>${S.categories.map(c => `<option ${filt.cat===c?"selected":""}>${esc(c)}</option>`).join("")}</select>
-    <span style="margin-left:auto;align-self:center;color:var(--muted);font-weight:600">${list.length} shown · ${money(sum)}</span>
+    <span style="margin-left:auto;align-self:center;color:var(--muted);font-weight:600">${list.length} shown${sums.length ? " · " + sums.map(([c,t]) => money(t,c)).join(" and ") : ""}</span>
   </div>
   <div class="list">${list.length ? list.map(e => {
     const parts = e.method==="equal" ? ((Object.keys(e.parts||{}).filter(k=>e.parts[k]).length) || S.people.length) + " people, equal" : e.method==="shares" ? "by shares" : "exact amounts";
     return `<div class="li"><span class="d">${fdate(e.date)}</span>
       <span class="t">${esc(e.item)}<small>${esc(e.category||"Uncategorised")} · paid by ${esc(e.paidBy)} · ${parts}</small></span>
-      <span class="a">${money(e.amount)}</span>
+      <span class="a">${money(e.amount, e.currency)}<br>${curChip(e.currency)}</span>
       <span class="x"><button class="link" data-edit="${e.id}">Edit</button><button class="link danger" data-del="${e.id}">Delete</button></span></div>`;
-  }).join("") : `<div class="empty"><b>${S.expenses.length ? "Nothing matches" : "No expenses yet"}</b>${S.expenses.length ? "Clear the search or pick another category." : "Use Add expense to log the first one."}</div>`}</div>`;
+  }).join("") : `<div class="empty"><b>${S.expenses.length ? "Nothing matches" : "No expenses yet"}</b>${S.expenses.length ? "Clear the search or pick another filter." : "Use Add expense to log the first one."}</div>`}</div>`;
   $("#x-add").onclick = () => openExpense();
   $("#x-q").oninput = e => { filt.q = e.target.value; const p = e.target.selectionStart; vExpenses(v); const i = $("#x-q"); i.focus(); i.setSelectionRange(p,p); };
   $("#x-c").onchange = e => { filt.cat = e.target.value; vExpenses(v); };
+  $("#x-cur").onchange = e => { filt.cur = e.target.value; vExpenses(v); };
   v.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openExpense(S.expenses.find(e => e.id===b.dataset.edit)));
   v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const e = S.expenses.find(x => x.id===b.dataset.del);
-    if (confirm(`Delete "${e.item}" (${money(e.amount)})? This cannot be undone.`)) { S.expenses = S.expenses.filter(x => x.id!==e.id); persist(); toast("Expense deleted"); }
+    if (confirm(`Delete "${e.item}" (${money(e.amount, e.currency)} ${e.currency})? This cannot be undone.`)) { S.expenses = S.expenses.filter(x => x.id!==e.id); persist(); toast("Expense deleted"); }
   });
 }
 
 function vPayments(v){
   if (S.people.length < 2) return needPeople(v);
-  const list = [...S.payments].sort((a,b) => b.date.localeCompare(a.date));
+  const list = [...S.payments].filter(p => !filt.pcur || p.currency === filt.pcur).sort((a,b) => b.date.localeCompare(a.date));
   v.innerHTML = `
   <div class="title-row"><h2>Payments</h2><div class="acts"><button class="btn primary" id="p-add">Record a payment</button></div></div>
-  <p style="color:var(--muted);margin:-6px 0 16px;max-width:60ch">Each time someone pays back what they owe, record it here. Balances and the transfers on Overview update straight away.</p>
+  <p style="color:var(--muted);margin:-6px 0 16px;max-width:64ch">Each time someone pays back what they owe, record it here with its currency. A payment only reduces balances in its own currency.</p>
+  <div class="filters"><select id="p-cf" aria-label="Filter by currency"><option value="">All currencies</option>${CODES.map(c => `<option value="${c}" ${filt.pcur===c?"selected":""}>${esc(CURRENCIES[c].symbol)} ${c} only</option>`).join("")}</select></div>
   <div class="list">${list.length ? list.map(p => `<div class="li"><span class="d">${fdate(p.date)}</span>
     <span class="t">${esc(p.from)} paid ${esc(p.to)}<small>${esc(p.note || "No note")}</small></span>
-    <span class="a">${money(p.amount)}</span>
+    <span class="a">${money(p.amount, p.currency)}<br>${curChip(p.currency)}</span>
     <span class="x"><button class="link" data-edit="${p.id}">Edit</button><button class="link danger" data-del="${p.id}">Delete</button></span></div>`).join("")
     : `<div class="empty"><b>No payments yet</b>When someone pays back, record it and their balance drops.</div>`}</div>`;
   $("#p-add").onclick = () => openPayment();
+  $("#p-cf").onchange = e => { filt.pcur = e.target.value; vPayments(v); };
   v.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openPayment(S.payments.find(p => p.id===b.dataset.edit)));
   v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const p = S.payments.find(x => x.id===b.dataset.del);
-    if (confirm(`Delete the payment from ${p.from} to ${p.to} (${money(p.amount)})?`)) { S.payments = S.payments.filter(x => x.id!==p.id); persist(); toast("Payment deleted"); }
+    if (confirm(`Delete the payment from ${p.from} to ${p.to} (${money(p.amount, p.currency)} ${p.currency})?`)) { S.payments = S.payments.filter(x => x.id!==p.id); persist(); toast("Payment deleted"); }
   });
 }
 
@@ -653,8 +719,8 @@ function vPeople(v){
   $("#ex-json").onclick = () => dl(`trip-split-backup-${today()}.json`, JSON.stringify(S,null,2), "application/json");
   $("#ex-csv").onclick = () => {
     const q = x => `"${String(x ?? "").replace(/"/g,'""')}"`;
-    const rows = [["Date","Item","Category","Amount","Paid by","Split",...S.people.map(p => "Share: "+p)]];
-    S.expenses.forEach(e => { const sh = shareOf(e); rows.push([e.date,e.item,e.category||"",e.amount,e.paidBy,e.method,...S.people.map(p => round2(sh[p]))]); });
+    const rows = [["Date","Item","Category","Amount","Currency","Paid by","Split",...S.people.map(p => "Share: "+p)]];
+    S.expenses.forEach(e => { const sh = shareOf(e); rows.push([e.date,e.item,e.category||"",e.amount,e.currency,e.paidBy,e.method,...S.people.map(p => round2(sh[p]))]); });
     dl(`trip-split-expenses-${today()}.csv`, rows.map(r => r.map(q).join(",")).join("\n"), "text/csv");
   };
   $("#im-json").onclick = () => $("#im-file").click();
@@ -664,7 +730,7 @@ function vPeople(v){
       const d = JSON.parse(await f.text());
       if (!Array.isArray(d.people) || !Array.isArray(d.expenses)) throw Error("not a Trip split backup");
       if (!confirm("Replace everything currently in the app with this backup?")) return;
-      S = Object.assign(blank(), d); S.payments = S.payments || []; persist(); toast("Backup imported");
+      S = normalize(d); persist(); toast("Backup imported");
     } catch (err) { toast("Import failed: " + err.message); }
   };
   $("#wipe").onclick = () => {
@@ -678,12 +744,15 @@ function vPeople(v){
 document.querySelectorAll("dialog").forEach(d => d.addEventListener("click", e => { if (e.target.closest("[data-close]") || e.target === d) d.close(); }));
 const opts = (arr, sel) => arr.map(x => `<option ${x===sel?"selected":""}>${esc(x)}</option>`).join("");
 
+const curOpts = sel => CODES.map(c => `<option value="${c}" ${c===sel?"selected":""}>${esc(CURRENCIES[c].symbol)} ${c} – ${esc(CURRENCIES[c].name)}</option>`).join("");
+
 /* expense */
 let editing = null;
 function openExpense(e){
   editing = e || null;
   $("#d-exp-h").textContent = e ? "Edit expense" : "Add expense";
   $("#e-item").value = e?.item || ""; $("#e-amt").value = e?.amount ?? ""; $("#e-date").value = e?.date || today();
+  $("#e-cur").innerHTML = curOpts(e?.currency || curView);
   $("#e-paid").innerHTML = opts(S.people, e?.paidBy);
   $("#e-cat").innerHTML = `<option value="">Uncategorised</option>` + opts(S.categories, e?.category);
   $("#e-method").value = e?.method || "equal"; $("#e-msg").textContent = "";
@@ -695,7 +764,7 @@ function buildParts(cur, first){
   const everyone = !Object.values(cur).some(Boolean);
   box.innerHTML = S.people.map(p => {
     if (m === "equal") return `<label class="pl">${esc(p)}<input type="checkbox" data-p="${esc(p)}" ${everyone || cur[p] ? "checked":""}></label>`;
-    const dv = m==="shares" ? (cur[p] ?? (first ? 1 : 1)) : (cur[p] ?? "");
+    const dv = m==="shares" ? (cur[p] ?? 1) : (cur[p] ?? "");
     return `<label class="pl">${esc(p)}<input type="number" min="0" step="${m==="shares"?"0.5":"0.01"}" data-p="${esc(p)}" value="${dv}" inputmode="decimal"></label>`;
   }).join("");
   box.querySelectorAll("input").forEach(i => i.oninput = i.onchange = partsNote);
@@ -710,14 +779,15 @@ function readParts(){
   return parts;
 }
 function partsNote(){
-  const m = $("#e-method").value, amt = +$("#e-amt").value || 0, parts = readParts(), n = $("#e-note");
+  const m = $("#e-method").value, amt = +$("#e-amt").value || 0, parts = readParts(), n = $("#e-note"), cu = $("#e-cur").value || "INR";
   n.className = "parts-note";
-  if (m === "equal") { const c = Object.keys(parts).length; n.textContent = c ? `${money(amt/c)} each between ${c} ${c===1?"person":"people"}.` : "Tick at least one person."; if(!c) n.classList.add("bad"); }
-  else if (m === "shares") { const t = Object.values(parts).reduce((a,b)=>a+b,0); n.textContent = t ? `Total ${t} shares, ${money(amt/t)} per share.` : "Give at least one person a share."; if(!t) n.classList.add("bad"); }
-  else { const t = Object.values(parts).reduce((a,b)=>a+b,0), d = round2(amt - t); n.textContent = Math.abs(d) < 0.01 ? "Amounts add up." : `${money(Math.abs(d))} ${d>0?"still to assign":"over the total"}.`; if (Math.abs(d)>=0.01) n.classList.add("bad"); }
+  if (m === "equal") { const c = Object.keys(parts).length; n.textContent = c ? `${money(amt/c, cu)} each between ${c} ${c===1?"person":"people"}.` : "Tick at least one person."; if(!c) n.classList.add("bad"); }
+  else if (m === "shares") { const t = Object.values(parts).reduce((a,b)=>a+b,0); n.textContent = t ? `Total ${t} shares, ${money(amt/t, cu)} per share.` : "Give at least one person a share."; if(!t) n.classList.add("bad"); }
+  else { const t = Object.values(parts).reduce((a,b)=>a+b,0), d = round2(amt - t); n.textContent = Math.abs(d) < 0.01 ? "Amounts add up." : `${money(Math.abs(d), cu)} ${d>0?"still to assign":"over the total"}.`; if (Math.abs(d)>=0.01) n.classList.add("bad"); }
 }
 $("#e-method").onchange = () => buildParts({}, false);
 $("#e-amt").oninput = partsNote;
+$("#e-cur").onchange = partsNote;
 $("#f-exp").onsubmit = ev => {
   ev.preventDefault();
   const m = $("#e-method").value, amt = round2(+$("#e-amt").value), parts = readParts(), er = $("#e-msg");
@@ -726,10 +796,11 @@ $("#f-exp").onsubmit = ev => {
   else if (!Object.keys(parts).length) { er.textContent = "Assign the split to at least one person."; return; }
   if (m === "exact" && Math.abs(amt - Object.values(parts).reduce((a,b)=>a+b,0)) >= 0.01) { er.textContent = "The exact amounts must add up to the total."; return; }
   const allTicked = m === "equal" && Object.keys(parts).length === S.people.length;
-  const rec = {id: editing?.id || uid(), item:$("#e-item").value.trim(), amount:amt, date:$("#e-date").value, paidBy:$("#e-paid").value,
+  const rec = {id: editing?.id || uid(), item:$("#e-item").value.trim(), amount:amt, currency:$("#e-cur").value, date:$("#e-date").value, paidBy:$("#e-paid").value,
     category:$("#e-cat").value, method:m, parts: allTicked ? {} : parts};
   if (editing) S.expenses = S.expenses.map(x => x.id===rec.id ? rec : x); else S.expenses.push(rec);
-  $("#d-exp").close(); persist(); toast(editing ? "Expense updated" : "Expense added");
+  curView = rec.currency;
+  $("#d-exp").close(); persist(); toast(`${editing ? "Expense updated" : "Expense added"} in ${rec.currency}`);
 };
 
 /* payment */
@@ -739,16 +810,18 @@ function openPayment(p, suggest){
   $("#d-pay-h").textContent = p ? "Edit payment" : "Record a payment";
   const from = p?.from || suggest?.from, to = p?.to || suggest?.to;
   $("#p-from").innerHTML = opts(S.people, from); $("#p-to").innerHTML = opts(S.people, to || S.people.find(x => x !== (from || S.people[0])));
+  $("#p-cur").innerHTML = curOpts(p?.currency || suggest?.currency || curView);
   $("#p-amt").value = p?.amount ?? suggest?.amount ?? ""; $("#p-date").value = p?.date || today(); $("#p-note").value = p?.note || ""; $("#p-msg").textContent = "";
   $("#d-pay").showModal(); (suggest ? $("#p-amt") : $("#p-from")).focus();
 }
 $("#f-pay").onsubmit = ev => {
   ev.preventDefault();
-  const rec = {id: editingP?.id || uid(), from:$("#p-from").value, to:$("#p-to").value, amount:round2(+$("#p-amt").value), date:$("#p-date").value, note:$("#p-note").value.trim()};
+  const rec = {id: editingP?.id || uid(), from:$("#p-from").value, to:$("#p-to").value, amount:round2(+$("#p-amt").value), currency:$("#p-cur").value, date:$("#p-date").value, note:$("#p-note").value.trim()};
   if (rec.from === rec.to) { $("#p-msg").textContent = "Pick two different people."; return; }
   if (!(rec.amount > 0)) { $("#p-msg").textContent = "Enter an amount above zero."; return; }
   if (editingP) S.payments = S.payments.map(x => x.id===rec.id ? rec : x); else S.payments.push(rec);
-  $("#d-pay").close(); persist(); toast(editingP ? "Payment updated" : "Payment saved");
+  curView = rec.currency;
+  $("#d-pay").close(); persist(); toast(`${editingP ? "Payment updated" : "Payment saved"} in ${rec.currency}`);
 };
 
 /* ============================================================

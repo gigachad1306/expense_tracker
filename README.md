@@ -44,6 +44,13 @@ browser's storage can read the data. Clearing site data deletes it, so use *Expo
 The Firebase `apiKey` is not a secret; it only identifies your project. Access is controlled by the
 rules in step 4. Do not skip that step.
 
+## Currencies (INR and USD)
+
+Every expense and payment has a currency. INR and USD are **never converted or added together**:
+the Overview has a currency switch, and balances, "who pays whom" and category totals are calculated
+separately for each. A payment only reduces balances in its own currency. Data saved before currencies
+existed is treated as INR automatically.
+
 ## Using it
 
 - **Overview:** totals, the fewest transfers that settle everyone (*Mark as paid* records it), balance per person, spending by category.
